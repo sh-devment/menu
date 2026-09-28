@@ -1,0 +1,129 @@
+name: Deploy
+
+on: workflow_dispatch
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        env:
+          PORT: ${{ vars.PORT }}
+          AUTH_URL: ${{ vars.AUTH_URL }}
+          AUTH_INTERNAL: ${{ vars.AUTH_INTERNAL }}
+          APP_URL: ${{ vars.APP_URL }}
+          APP_TOKEN: ${{ secrets.APP_TOKEN }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        run: |
+          set -euo pipefail
+
+          APP="menu"
+          APP_DIR="/opt/$APP"
+          BIN="$APP_DIR/$APP"
+          SERVICE="$APP_DIR/$APP.service"
+          ENV_FILE="$APP_DIR/$APP.env"
+
+          echo "=== Deploy $APP ==="
+
+          # ── Validate ──────────────────────────────────────────
+
+          test -f "bin/$APP"
+          test -f "build/$APP.service"
+
+          # ── Backup current deployment ─────────────────────────
+
+          rm -rf "$APP_DIR/.backup"
+          mkdir -p "$APP_DIR/.backup"
+
+          [ ! -f "$BIN" ]      || cp -a "$BIN"      "$APP_DIR/.backup/$APP"
+          [ ! -f "$SERVICE" ]  || cp -a "$SERVICE"  "$APP_DIR/.backup/$APP.service"
+          [ ! -f "$ENV_FILE" ] || cp -a "$ENV_FILE" "$APP_DIR/.backup/$APP.env"
+
+          # SQLite backup, если база уже существует.
+          if [ -f "$APP_DIR/$APP.db" ]; then
+            sqlite3 "$APP_DIR/$APP.db" \
+              ".backup '$APP_DIR/.backup/$APP.db'"
+          fi
+
+          # ── Environment ──────────────────────────────────────
+
+          umask 077
+
+          cat > "$ENV_FILE.new" <<EOF
+          PORT=$PORT
+          AUTH_URL=$AUTH_URL
+          AUTH_INTERNAL=$AUTH_INTERNAL
+          APP_URL=$APP_URL
+          APP_TOKEN=$APP_TOKEN
+          SECRET_KEY=$SECRET_KEY
+          EOF
+
+          mv "$ENV_FILE.new" "$ENV_FILE"
+
+          # ── Binary + service ─────────────────────────────────
+
+          install -m 0755 "bin/$APP" "$BIN.new"
+          mv "$BIN.new" "$BIN"
+
+          install -m 0644 "build/$APP.service" "$SERVICE.new"
+          mv "$SERVICE.new" "$SERVICE"
+
+          # ── Restart ──────────────────────────────────────────
+
+          sudo /usr/bin/systemctl daemon-reload
+          sudo /usr/bin/systemctl enable "$APP.service"
+          sudo /usr/bin/systemctl restart "$APP.service"
+
+          # ── Health check ─────────────────────────────────────
+
+          OK=false
+
+          for i in $(seq 1 15); do
+            if curl --fail --silent --max-time 2 \
+              "http://127.0.0.1:$PORT/" >/dev/null; then
+              OK=true
+              break
+            fi
+
+            sleep 1
+          done
+
+          if [ "$OK" = true ]; then
+            sudo /usr/bin/systemctl is-active "$APP.service"
+            "$BIN" --version
+            echo "=== Deploy successful ==="
+            exit 0
+          fi
+
+          # ── Rollback ─────────────────────────────────────────
+
+          echo "=== Health check failed. Rolling back ==="
+
+          [ ! -f "$APP_DIR/.backup/$APP" ] ||
+            cp -a "$APP_DIR/.backup/$APP" "$BIN"
+
+          [ ! -f "$APP_DIR/.backup/$APP.service" ] ||
+            cp -a "$APP_DIR/.backup/$APP.service" "$SERVICE"
+
+          [ ! -f "$APP_DIR/.backup/$APP.env" ] ||
+            cp -a "$APP_DIR/.backup/$APP.env" "$ENV_FILE"
+
+          if [ -f "$APP_DIR/.backup/$APP.db" ]; then
+            sqlite3 "$APP_DIR/.backup/$APP.db" \
+              ".backup '$APP_DIR/$APP.db'"
+          fi
+
+          sudo /usr/bin/systemctl daemon-reload
+          sudo /usr/bin/systemctl restart "$APP.service"
+
+          echo "=== Previous deployment restored ==="
+          exit 1
