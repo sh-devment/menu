@@ -1,0 +1,21 @@
+name: Runner test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: self-hosted
+
+    steps:
+      - name: Runner info
+        run: |
+          echo "hostname: $(hostname)"
+          echo "user:     $(whoami)"
+          echo "arch:     $(uname -m)"
+          echo "kernel:   $(uname -s)"
+
+      - name: Check deployment area
+        run: |
+          echo "=== /opt ==="
+          ls -la /opt
