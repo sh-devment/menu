@@ -2,41 +2,16 @@ name: Deploy
 
 on:
   workflow_dispatch:
-    inputs:
-      target:
-        description: Deploy target
-        required: true
-        default: both
-        type: choice
-        options:
-          - both
-          - com
-          - ru
 
 concurrency:
-  group: production-${{ inputs.target }}
+  group: production
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - name: com
-            runner: production-com
-            environment: production-com
-          - name: ru
-            runner: production-ru
-            environment: production-ru
-
-    # Если выбран конкретный сервер — второй matrix job пропускается.
-    if: ${{ inputs.target == 'both' || inputs.target == matrix.target.name }}
-
-    name: Deploy ${{ matrix.target.name }}
-
-    runs-on: [self-hosted, "${{ matrix.target.runner }}"]
-    environment: ${{ matrix.target.environment }}
+  deploy-com:
+    name: Deploy COM
+    runs-on: [self-hosted, production-com]
+    environment: production-com
 
     steps:
       - name: Checkout
@@ -51,115 +26,24 @@ jobs:
           APP_TOKEN: ${{ secrets.APP_TOKEN }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
         run: |
-          set -euo pipefail
+          ./build/deploy.sh
 
-          APP="menu"
-          APP_DIR="/opt/$APP"
-          BIN="$APP_DIR/$APP"
-          SERVICE="$APP_DIR/$APP.service"
-          ENV_FILE="$APP_DIR/$APP.env"
-          BACKUP="$APP_DIR/.backup"
+  deploy-ru:
+    name: Deploy RU
+    runs-on: [self-hosted, production-ru]
+    environment: production-ru
 
-          echo "=== Deploy $APP ==="
-          echo "Target: ${{ matrix.target.name }}"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-          # ── Validate ──────────────────────────────────────────
-
-          test -f "bin/$APP"
-          test -f "build/$APP.service"
-
-          # Проверяем конфигурацию, но не выводим значения.
-          test -n "$PORT"
-          test -n "$AUTH_URL"
-          test -n "$AUTH_INTERNAL"
-          test -n "$APP_URL"
-          test -n "$APP_TOKEN"
-          test -n "$SECRET_KEY"
-
-          # ── Backup current deployment ─────────────────────────
-
-          rm -rf "$BACKUP"
-          mkdir -p "$BACKUP"
-
-          [ ! -f "$BIN" ]      || cp -a "$BIN"      "$BACKUP/$APP"
-          [ ! -f "$SERVICE" ]  || cp -a "$SERVICE"  "$BACKUP/$APP.service"
-          [ ! -f "$ENV_FILE" ] || cp -a "$ENV_FILE" "$BACKUP/$APP.env"
-
-          # DB сохраняем, но автоматически не откатываем.
-          if [ -f "$APP_DIR/$APP.db" ]; then
-            sqlite3 "$APP_DIR/$APP.db" \
-              ".backup '$BACKUP/$APP.db'"
-          fi
-
-          # ── Environment ───────────────────────────────────────
-
-          umask 077
-
-          cat > "$ENV_FILE.new" <<EOF
-          PORT=$PORT
-          AUTH_URL=$AUTH_URL
-          AUTH_INTERNAL=$AUTH_INTERNAL
-          APP_URL=$APP_URL
-          APP_TOKEN=$APP_TOKEN
-          SECRET_KEY=$SECRET_KEY
-          EOF
-
-          mv "$ENV_FILE.new" "$ENV_FILE"
-
-          # ── Binary + service ──────────────────────────────────
-
-          install -m 0755 "bin/$APP" "$BIN.new"
-          mv "$BIN.new" "$BIN"
-
-          install -m 0644 "build/$APP.service" "$SERVICE.new"
-          mv "$SERVICE.new" "$SERVICE"
-
-          # ── Restart ───────────────────────────────────────────
-
-          sudo /usr/bin/systemctl daemon-reload
-          sudo /usr/bin/systemctl enable "$APP.service"
-          sudo /usr/bin/systemctl restart "$APP.service"
-
-          # ── Health check ──────────────────────────────────────
-
-          OK=false
-
-          for i in $(seq 1 15); do
-            if curl --fail --silent --max-time 2 \
-              "http://127.0.0.1:$PORT/" >/dev/null; then
-              OK=true
-              break
-            fi
-
-            sleep 1
-          done
-
-          if [ "$OK" = true ]; then
-            sudo /usr/bin/systemctl is-active "$APP.service"
-            "$BIN" --version
-            echo "=== Deploy successful ==="
-            exit 0
-          fi
-
-          # ── Rollback application ──────────────────────────────
-
-          echo "=== Health check failed. Rolling back ==="
-
-          [ ! -f "$BACKUP/$APP" ] ||
-            cp -a "$BACKUP/$APP" "$BIN"
-
-          [ ! -f "$BACKUP/$APP.service" ] ||
-            cp -a "$BACKUP/$APP.service" "$SERVICE"
-
-          [ ! -f "$BACKUP/$APP.env" ] ||
-            cp -a "$BACKUP/$APP.env" "$ENV_FILE"
-
-          # ВАЖНО:
-          # DB backup лежит в $BACKUP/$APP.db,
-          # но автоматически его не восстанавливаем.
-
-          sudo /usr/bin/systemctl daemon-reload
-          sudo /usr/bin/systemctl restart "$APP.service"
-
-          echo "=== Previous application deployment restored ==="
-          exit 1
+      - name: Deploy
+        env:
+          PORT: ${{ vars.PORT }}
+          AUTH_URL: ${{ vars.AUTH_URL }}
+          AUTH_INTERNAL: ${{ vars.AUTH_INTERNAL }}
+          APP_URL: ${{ vars.APP_URL }}
+          APP_TOKEN: ${{ secrets.APP_TOKEN }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        run: |
+          ./build/deploy.sh
