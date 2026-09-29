@@ -1,15 +1,42 @@
 name: Deploy
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deploy target
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - com
+          - ru
 
 concurrency:
-  group: production
+  group: production-${{ inputs.target }}
   cancel-in-progress: false
 
 jobs:
   deploy:
-    runs-on: [self-hosted, production-com]
-    environment: production
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: com
+            runner: production-com
+            environment: production-com
+          - name: ru
+            runner: production-ru
+            environment: production-ru
+
+    # Если выбран конкретный сервер — второй matrix job пропускается.
+    if: ${{ inputs.target == 'both' || inputs.target == matrix.target.name }}
+
+    name: Deploy ${{ matrix.target.name }}
+
+    runs-on: [self-hosted, "${{ matrix.target.runner }}"]
+    environment: ${{ matrix.target.environment }}
 
     steps:
       - name: Checkout
@@ -31,30 +58,40 @@ jobs:
           BIN="$APP_DIR/$APP"
           SERVICE="$APP_DIR/$APP.service"
           ENV_FILE="$APP_DIR/$APP.env"
+          BACKUP="$APP_DIR/.backup"
 
           echo "=== Deploy $APP ==="
+          echo "Target: ${{ matrix.target.name }}"
 
           # ── Validate ──────────────────────────────────────────
 
           test -f "bin/$APP"
           test -f "build/$APP.service"
 
+          # Проверяем конфигурацию, но не выводим значения.
+          test -n "$PORT"
+          test -n "$AUTH_URL"
+          test -n "$AUTH_INTERNAL"
+          test -n "$APP_URL"
+          test -n "$APP_TOKEN"
+          test -n "$SECRET_KEY"
+
           # ── Backup current deployment ─────────────────────────
 
-          rm -rf "$APP_DIR/.backup"
-          mkdir -p "$APP_DIR/.backup"
+          rm -rf "$BACKUP"
+          mkdir -p "$BACKUP"
 
-          [ ! -f "$BIN" ]      || cp -a "$BIN"      "$APP_DIR/.backup/$APP"
-          [ ! -f "$SERVICE" ]  || cp -a "$SERVICE"  "$APP_DIR/.backup/$APP.service"
-          [ ! -f "$ENV_FILE" ] || cp -a "$ENV_FILE" "$APP_DIR/.backup/$APP.env"
+          [ ! -f "$BIN" ]      || cp -a "$BIN"      "$BACKUP/$APP"
+          [ ! -f "$SERVICE" ]  || cp -a "$SERVICE"  "$BACKUP/$APP.service"
+          [ ! -f "$ENV_FILE" ] || cp -a "$ENV_FILE" "$BACKUP/$APP.env"
 
-          # SQLite backup, если база уже существует.
+          # DB сохраняем, но автоматически не откатываем.
           if [ -f "$APP_DIR/$APP.db" ]; then
             sqlite3 "$APP_DIR/$APP.db" \
-              ".backup '$APP_DIR/.backup/$APP.db'"
+              ".backup '$BACKUP/$APP.db'"
           fi
 
-          # ── Environment ──────────────────────────────────────
+          # ── Environment ───────────────────────────────────────
 
           umask 077
 
@@ -69,7 +106,7 @@ jobs:
 
           mv "$ENV_FILE.new" "$ENV_FILE"
 
-          # ── Binary + service ─────────────────────────────────
+          # ── Binary + service ──────────────────────────────────
 
           install -m 0755 "bin/$APP" "$BIN.new"
           mv "$BIN.new" "$BIN"
@@ -77,13 +114,13 @@ jobs:
           install -m 0644 "build/$APP.service" "$SERVICE.new"
           mv "$SERVICE.new" "$SERVICE"
 
-          # ── Restart ──────────────────────────────────────────
+          # ── Restart ───────────────────────────────────────────
 
           sudo /usr/bin/systemctl daemon-reload
           sudo /usr/bin/systemctl enable "$APP.service"
           sudo /usr/bin/systemctl restart "$APP.service"
 
-          # ── Health check ─────────────────────────────────────
+          # ── Health check ──────────────────────────────────────
 
           OK=false
 
@@ -104,26 +141,25 @@ jobs:
             exit 0
           fi
 
-          # ── Rollback ─────────────────────────────────────────
+          # ── Rollback application ──────────────────────────────
 
           echo "=== Health check failed. Rolling back ==="
 
-          [ ! -f "$APP_DIR/.backup/$APP" ] ||
-            cp -a "$APP_DIR/.backup/$APP" "$BIN"
+          [ ! -f "$BACKUP/$APP" ] ||
+            cp -a "$BACKUP/$APP" "$BIN"
 
-          [ ! -f "$APP_DIR/.backup/$APP.service" ] ||
-            cp -a "$APP_DIR/.backup/$APP.service" "$SERVICE"
+          [ ! -f "$BACKUP/$APP.service" ] ||
+            cp -a "$BACKUP/$APP.service" "$SERVICE"
 
-          [ ! -f "$APP_DIR/.backup/$APP.env" ] ||
-            cp -a "$APP_DIR/.backup/$APP.env" "$ENV_FILE"
+          [ ! -f "$BACKUP/$APP.env" ] ||
+            cp -a "$BACKUP/$APP.env" "$ENV_FILE"
 
-          if [ -f "$APP_DIR/.backup/$APP.db" ]; then
-            sqlite3 "$APP_DIR/.backup/$APP.db" \
-              ".backup '$APP_DIR/$APP.db'"
-          fi
+          # ВАЖНО:
+          # DB backup лежит в $BACKUP/$APP.db,
+          # но автоматически его не восстанавливаем.
 
           sudo /usr/bin/systemctl daemon-reload
           sudo /usr/bin/systemctl restart "$APP.service"
 
-          echo "=== Previous deployment restored ==="
+          echo "=== Previous application deployment restored ==="
           exit 1
