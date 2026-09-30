@@ -1,0 +1,187 @@
+# RULES.md
+
+Project rules for **menu** — for humans and for Claude Code alike (the local, gitignored
+`CLAUDE.md` just imports this file). Single source of truth: update it together with the code.
+
+## What this is
+
+**menu** is an app-portal for the sh-development ecosystem. Authenticated users see a grid of available apps and can open any of them without re-logging in (cross-app SSO via delegate codes). It is built on the `example/` auth-client template.
+
+Auth center: one per zone — `https://auth-center.sh-development.ru` / `https://auth-center.sh-development.com`.
+
+## Rules
+
+- Go may be run natively (dev machine is linux/amd64, same as prod) — `go build`, `go vet`,
+  `gofmt` directly in `build/`. Docker stays available as a tool (dev hot-reload, release build).
+- Need something installed on the dev machine? Ask first, install only after agreement.
+- `example/` is a read-only reference template. Do not modify it.
+
+## Commands
+
+**Local dev (hot-reload via Air):**
+```bash
+cp .env.example .env   # fill in variables once
+docker-compose -f dev-compose.yml up --remove-orphans
+```
+Force rebuild after Dockerfile changes: add `--build`.
+
+**Quick check (native):**
+```bash
+cd build && gofmt -l . && go vet ./... && go build -o /dev/null .
+```
+
+**Production binary (linux/amd64, committed to git):**
+```bash
+docker-compose -f prod-compose.yml run --rm release
+# binary lands in bin/menu
+```
+Force no-cache: `docker-compose -f prod-compose.yml build --no-cache release && docker-compose -f prod-compose.yml run --rm release`
+
+**Deploy:** GitHub Actions → `Deploy` (manual `workflow_dispatch`). Matrix over `ru` / `com`,
+each on its own self-hosted runner + environment; runs `bin/deploy.sh`, which installs
+`bin/$APP`, writes `/opt/$APP/$APP.env` and the systemd unit, restarts, health-checks and
+rolls back on failure (previous state kept in `/opt/$APP/last-deploy-backup`). No build step
+on the server — commit the rebuilt `bin/menu` before deploying. `APP` is a required repo
+variable; `REGION` comes from the matrix.
+
+## File roles
+
+```
+build/
+  main.go        — server setup, env loading, all app routes/handlers  ← edit this
+  auth-human.go  — JWT sessions, /login, /logout, handleCallback       ← do not edit
+  auth-server.go — server-to-server calls to auth-center (delegateCode) ← do not edit
+  db.go          — SQLite init, users table, core queries               ← do not edit
+  app_db.go      — app-specific migrations (appMigrate func)           ← edit this
+  region.go      — ALL ru/com zone differences (regionDef, initRegion) ← edit, review together
+  web/
+    shell.css / shell.js  — shared chrome: navbar, profile popover     ← do not edit
+    app.css / app.js      — app-specific styles and logic              ← edit these
+    index.html            — Go template: {{if .User}} / {{else}}       ← edit this
+```
+
+## Auth flow
+
+```
+GET /login → redirect to auth-center → redirect back to /?code=<one-time-code>
+GET /       → handleCallback(code) → POST AUTH_INTERNAL/exchange → upsertUser → set JWT cookie → redirect /
+```
+
+- `sessionUserID(r)` — returns internal DB `id` (int64), 0 if not logged in
+- `requireAuth(handler)` — middleware that redirects to `/login` if not logged in
+- JWT cookie: 30-day expiry, HttpOnly, SameSite=Lax, signed with `SECRET_KEY`
+
+## App definitions (single source of truth)
+
+All apps live in one `apps []appDef` slice in `main.go`. The grid template, the
+`/status` endpoint, and the open handler all derive from it — add an app in one place:
+
+```go
+var apps = []appDef{
+    {Slug: "blur", Name: "blur", Sub: "blur", Icon: "blur.svg", Desc: "..."},
+    ...
+}
+```
+
+`appDef{Slug, Name, Sub, URL, Icon, Desc, Features}`. `URL` is **not** set by hand —
+`initRegion()` (`region.go`) fills it as `https://<Sub>.<region.Domain>`. `appBySlug(slug)` looks one up.
+
+## Regions
+
+Two main domains — `sh-development.ru` and `sh-development.com` — each with its own
+subdomains (one per app). Every app exists in both zones, but its content and links may
+differ slightly between them. SSO works only within one zone. Both profiles are compiled into the binary (`regions` map → `regionDef`);
+`REGION` env picks one at startup, unknown/empty is fatal. The deploy workflow passes
+`REGION: ${{ matrix.region }}`, so it always matches the runner/environment.
+
+- **All zone differences live in one file: `build/region.go`.** Domain, links, texts,
+  per-app content/availability — only there, never in `main.go`, templates or JS. It is one
+  of the most critical nodes of the system: any change to `region.go` is reviewed together
+  with the owner before commit.
+- Infrastructure (auth URLs, tokens, port) → env.
+- Template gets the profile as `.Region` (e.g. `{{.Region.Domain}}`) — never hardcode the domain.
+
+## Cross-app redirect (delegate flow)
+
+One generic handler serves every app via `GET /open/{slug}` (Go 1.22 path value):
+
+```go
+func handleOpen(w http.ResponseWriter, r *http.Request) {
+    uid := sessionUserID(r)
+    if uid == 0 { http.Redirect(w, r, "/login", http.StatusFound); return }
+    app := appBySlug(r.PathValue("slug"))
+    if app == nil { http.NotFound(w, r); return }
+    if !reachable(app.URL) { /* 502 */ }          // server half of the green check
+    code, err := delegateCode(uid)
+    // ... → redirect app.URL + "/?code=" + code
+}
+```
+
+No per-app handlers — registering a new app needs only an `apps` entry.
+
+## Server status (`/status`)
+
+`GET /status` returns `{slug: bool}` — server-side reachability of every app, probed
+concurrently with a 4s-timeout `statusClient` (`reachable()` does HEAD, falls back to GET;
+any HTTP response = reachable). Auth-gated. The client merges this with its own per-app
+`no-cors` ping to drive the traffic-light dot (see `app.js`):
+
+- green `online`  — server OK **and** client OK → opening allowed
+- yellow `partial` — exactly one OK → likely network/provider block, opening blocked
+- red `offline`  — both bad, opening blocked
+
+## App grid
+
+Current apps (subdomains, on the active region's domain): `nom-nom`, `wgetbash`, `blur`, `qcode`.
+
+Each card shows: temp icon tile, name, status dot, and an info button (`i`) that opens a
+modal with the app's `Desc`. A "refresh" button under the grid re-runs the status check.
+
+## Navigation (two tabs)
+
+1. **Apps** — main page, app grid
+2. **Info** — hardcoded static info page
+
+Profile popover contains: auth provider, name, uid, README link (`https://github.com/shumilovsergey/menu#`), logout button. No extra items.
+
+## Web layer
+
+All static files must be registered as explicit `GET` routes in `main.go` (Go 1.22+ method-prefix mux). Files are embedded via `//go:embed web`.
+
+Template receives `pageData{User *User, Error string, Apps []appDef, Region regionDef}`:
+- `{{if .User}}` — navbar + `<main class="app-content">`
+- `{{else}}` — login screen with `.login-card` and `.app-about`
+
+Use CSS variables from `shell.css` only — no hardcoded colors in `app.css`. Variables: `--bg`, `--card`, `--border`, `--border-active`, `--text`, `--text-dim`, `--accent`, `--neon`.
+
+## Database
+
+SQLite via `modernc.org/sqlite` (no CGO). Core `users` table auto-created on startup. Add app-specific tables in `app_db.go → appMigrate()`. Always FK to `users.id`, never `auth_id`.
+
+New columns on existing DBs:
+```go
+db.Exec(`ALTER TABLE users ADD COLUMN my_col TEXT`) //nolint:errcheck
+```
+
+## Logging
+
+One `log.Printf` per meaningful user action, `key=value` format:
+```
+login uid=1 method=google name="Сергей Шумилов" new=false
+logout uid=1
+open-blur uid=1
+```
+HTTP request logging is handled by the middleware — don't add per-route request logging.
+
+## Environment variables
+
+| Variable | Default | Notes |
+|---|---|---|
+| `REGION` | — | `ru` \| `com`, required; set from deploy matrix |
+| `AUTH_URL` | — | Public auth-center URL (browser-facing) |
+| `AUTH_INTERNAL` | — | Internal auth-center URL (server-to-server) |
+| `APP_URL` | — | Public URL of this app |
+| `APP_TOKEN` | — | Must be in auth-center's `APP_TOKENS` |
+| `SECRET_KEY` | `dev-secret` | JWT signing key — always set in prod |
+| `DB_PATH` | `menu.db` | SQLite file path |
+| `PORT` | `8890` | HTTP listen port |

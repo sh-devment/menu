@@ -33,9 +33,10 @@ var (
 )
 
 type pageData struct {
-	User  *User
-	Error string
-	Apps  []appDef
+	User   *User
+	Error  string
+	Apps   []appDef
+	Region regionDef
 }
 
 // appDef is the single source of truth for an app in the grid.
@@ -43,7 +44,8 @@ type pageData struct {
 type appDef struct {
 	Slug string // url segment + status key, e.g. "blur"
 	Name string // display name shown on the card
-	URL  string // target base URL, e.g. "https://blur.sh-development.ru"
+	Sub  string // subdomain; the URL is https://<Sub>.<region.Domain>
+	URL  string // filled at startup by initRegion (region.go) — don't set by hand
 	Icon string // icon filename under web/icons/ (e.g. "blur.svg"); empty → first-letter tile
 	Desc string // short description shown at the top of the info modal
 
@@ -54,7 +56,7 @@ type appDef struct {
 
 var apps = []appDef{
 	{
-		Slug: "nom-nom", Name: "nom-nom", URL: "https://nom-nom.sh-development.ru", Icon: "nom-nom.svg",
+		Slug: "nom-nom", Name: "nom-nom", Sub: "nom-nom", Icon: "nom-nom.svg",
 		Desc: "Это трекер для колорий и веса",
 		Features: []string{
 			"Ежедневная статистика прогресса",
@@ -63,7 +65,7 @@ var apps = []appDef{
 		},
 	},
 	{
-		Slug: "wgetbash", Name: "wget-bash", URL: "https://wgetbash.sh-development.ru", Icon: "wget-bash.svg",
+		Slug: "wgetbash", Name: "wget-bash", Sub: "wgetbash", Icon: "wget-bash.svg",
 		Desc: "Хранилище для bash скриптов",
 		Features: []string{
 			"Доставка до сервера в один клик",
@@ -72,7 +74,7 @@ var apps = []appDef{
 		},
 	},
 	{
-		Slug: "blur", Name: "blur", URL: "https://blur.sh-development.ru", Icon: "blur.svg",
+		Slug: "blur", Name: "blur", Sub: "blur", Icon: "blur.svg",
 		Desc: "Плеер для длинных аудио — книг, подкастов и лекций",
 		Features: []string{
 			"Удобно выбирать время воспроизведения клавиатурой",
@@ -81,7 +83,7 @@ var apps = []appDef{
 		},
 	},
 	{
-		Slug: "qcode", Name: "qcode", URL: "https://qcode.sh-development.ru", Icon: "qcode.svg",
+		Slug: "qcode", Name: "qcode", Sub: "qcode", Icon: "qcode.svg",
 		Desc: "Редактор для создания красивых qr codes",
 		Features: []string{
 			"Есть интеграция с AI",
@@ -202,7 +204,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	if uid := sessionUserID(r); uid != 0 {
 		user, _ = getUserByID(uid)
 	}
-	tmpl.Execute(w, pageData{User: user, Apps: apps}) //nolint:errcheck
+	tmpl.Execute(w, pageData{User: user, Apps: apps, Region: region}) //nolint:errcheck
 }
 
 // handleOpen issues a cross-app delegate redirect for /open/{slug}.
@@ -284,6 +286,7 @@ func main() {
 	}
 	jwtSecret = []byte(secretKey)
 
+	initRegion()
 	initDB()
 	initAssetVer()
 	initTemplate()

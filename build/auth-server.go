@@ -7,8 +7,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
-	"net/http"
 )
 
 // delegateCode obtains a one-time cross-app login code from auth-center,
@@ -50,19 +48,4 @@ func delegateCode(uid int64) (string, error) {
 		return "", fmt.Errorf("delegate failed: %s", data.Error)
 	}
 	return data.Code, nil
-}
-
-func handleOpenFoodScanner(w http.ResponseWriter, r *http.Request) {
-	uid := sessionUserID(r)
-	if uid == 0 {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
-	code, err := delegateCode(uid)
-	if err != nil {
-		log.Printf("open-food-scanner uid=%d error=%v", uid, err)
-		http.Error(w, "could not open app", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "https://food-scaner.sh-development.ru/?code="+code, http.StatusFound)
 }
