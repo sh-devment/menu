@@ -8,10 +8,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy-com:
-    name: Deploy COM
-    runs-on: [self-hosted, production-com]
-    environment: production-com
+  deploy:
+    name: Deploy ${{ matrix.region }}
+    runs-on: [self-hosted, "production-${{ matrix.region }}"]
+    environment: production-${{ matrix.region }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        region: [com, ru]
 
     steps:
       - name: Checkout
@@ -19,31 +24,15 @@ jobs:
 
       - name: Deploy
         env:
+          # Имя приложения: repo-level variable, fallback — имя репозитория.
+          APP: ${{ vars.APP || github.event.repository.name }}
+          # Какие переменные записать в $APP.env (всё ниже в этом блоке).
+          ENV_KEYS: PORT AUTH_URL AUTH_INTERNAL APP_URL APP_TOKEN SECRET_KEY
+
           PORT: ${{ vars.PORT }}
           AUTH_URL: ${{ vars.AUTH_URL }}
           AUTH_INTERNAL: ${{ vars.AUTH_INTERNAL }}
           APP_URL: ${{ vars.APP_URL }}
           APP_TOKEN: ${{ secrets.APP_TOKEN }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
-        run: |
-          ./build/deploy.sh
-
-  deploy-ru:
-    name: Deploy RU
-    runs-on: [self-hosted, production-ru]
-    environment: production-ru
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Deploy
-        env:
-          PORT: ${{ vars.PORT }}
-          AUTH_URL: ${{ vars.AUTH_URL }}
-          AUTH_INTERNAL: ${{ vars.AUTH_INTERNAL }}
-          APP_URL: ${{ vars.APP_URL }}
-          APP_TOKEN: ${{ secrets.APP_TOKEN }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
-        run: |
-          ./build/deploy.sh
+        run: ./bin/deploy.sh

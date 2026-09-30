@@ -2,7 +2,20 @@
 
 set -euo pipefail
 
-APP="menu"
+# Всё app-специфичное приходит из окружения (GitHub Actions vars/secrets):
+#   APP      — имя приложения: бинарь bin/$APP, unit и файлы в /opt/$APP
+#   ENV_KEYS — список переменных (через пробел), которые попадут в $APP.env
+#   PORT     — порт для health check (обязан быть в ENV_KEYS)
+
+: "${APP:?APP is not set}"
+: "${ENV_KEYS:?ENV_KEYS is not set}"
+
+# APP участвует в путях и rm -rf — пускаем только безопасные имена.
+[[ "$APP" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || {
+  echo "Invalid APP name: '$APP'" >&2
+  exit 1
+}
+
 APP_DIR="/opt/$APP"
 
 BIN="$APP_DIR/$APP"
@@ -15,15 +28,20 @@ echo "=== Deploy $APP ==="
 # ── Validate ──────────────────────────────────────────────
 
 test -f "bin/$APP"
-test -f "build/$APP.service"
 
 # Проверяем наличие конфигурации, не выводя значения.
+for key in $ENV_KEYS; do
+  [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || {
+    echo "Invalid env key: '$key'" >&2
+    exit 1
+  }
+  [ -n "${!key:-}" ] || {
+    echo "Missing required variable: $key" >&2
+    exit 1
+  }
+done
+
 test -n "${PORT:-}"
-test -n "${AUTH_URL:-}"
-test -n "${AUTH_INTERNAL:-}"
-test -n "${APP_URL:-}"
-test -n "${APP_TOKEN:-}"
-test -n "${SECRET_KEY:-}"
 
 # ── Backup current deployment ─────────────────────────────
 
@@ -52,14 +70,10 @@ fi
 
 umask 077
 
-cat > "$ENV_FILE.new" <<EOF
-PORT=$PORT
-AUTH_URL=$AUTH_URL
-AUTH_INTERNAL=$AUTH_INTERNAL
-APP_URL=$APP_URL
-APP_TOKEN=$APP_TOKEN
-SECRET_KEY=$SECRET_KEY
-EOF
+: > "$ENV_FILE.new"
+for key in $ENV_KEYS; do
+  printf '%s=%s\n' "$key" "${!key}" >> "$ENV_FILE.new"
+done
 
 mv "$ENV_FILE.new" "$ENV_FILE"
 
@@ -70,7 +84,26 @@ mv "$BIN.new" "$BIN"
 
 # ── Service ───────────────────────────────────────────────
 
-install -m 0644 "build/$APP.service" "$SERVICE.new"
+# Unit генерируется из $APP — в репозитории его держать не нужно.
+cat > "$SERVICE.new" <<EOF
+[Unit]
+Description=$APP
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$APP_DIR
+EnvironmentFile=$ENV_FILE
+ExecStart=$BIN
+
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+chmod 0644 "$SERVICE.new"
 mv "$SERVICE.new" "$SERVICE"
 
 # ── Restart ───────────────────────────────────────────────
