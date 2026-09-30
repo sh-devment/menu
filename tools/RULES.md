@@ -44,6 +44,12 @@ rolls back on failure (previous state kept in `/opt/$APP/last-deploy-backup`). N
 on the server — commit the rebuilt `bin/menu` before deploying. `APP` is a required repo
 variable; `REGION` comes from the matrix.
 
+**Nightly backup:** `bin/backup.sh` (generic, takes `$APP` as its argument). Every deploy
+installs it as `/opt/$APP/backup.sh` and, if there's no such entry yet, adds to worker's crontab:
+`0 1 * * * flock /var/lock/backups.lock /opt/$APP/backup.sh $APP >> /backup/$APP/backup.log 2>&1`.
+Every app uses the same time, and the shared lock runs them one after another. It keeps the 7
+latest `/backup/$APP/$APP-<date>.db`. One-time server setup: `/backup` must be writable by worker.
+
 ## File roles
 
 ```

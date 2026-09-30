@@ -109,6 +109,29 @@ EOF
 chmod 0644 "$SERVICE.new"
 mv "$SERVICE.new" "$SERVICE"
 
+# ── Nightly backup ────────────────────────────────────────
+
+# Скрипт обновляется каждым deploy; задание в crontab worker'а
+# добавляется только если его ещё нет.
+# /backup должен быть доступен worker'у на запись (разовая настройка сервера).
+BACKUP_SCRIPT="$APP_DIR/backup.sh"
+BACKUP_ROOT="/backup/$APP"
+
+install -m 0755 bin/backup.sh "$BACKUP_SCRIPT.new"
+mv "$BACKUP_SCRIPT.new" "$BACKUP_SCRIPT"
+
+mkdir -p "$BACKUP_ROOT"
+
+CRON_LINE="0 1 * * * flock /var/lock/backups.lock $BACKUP_SCRIPT $APP >> $BACKUP_ROOT/backup.log 2>&1"
+CRONTAB=$(crontab -l 2>/dev/null || true)
+
+if grep -qF "$BACKUP_SCRIPT" <<<"$CRONTAB"; then
+  echo "Backup cron: already present"
+else
+  printf '%s\n%s\n' "$CRONTAB" "$CRON_LINE" | sed '/^$/d' | crontab -
+  echo "Backup cron: added"
+fi
+
 # ── Restart ───────────────────────────────────────────────
 
 sudo /usr/bin/systemctl daemon-reload
