@@ -21,7 +21,7 @@ APP_DIR="/opt/$APP"
 BIN="$APP_DIR/$APP"
 SERVICE="$APP_DIR/$APP.service"
 ENV_FILE="$APP_DIR/$APP.env"
-BACKUP="$APP_DIR/.backup"
+BACKUP="$APP_DIR/last-deploy-backup"
 
 echo "=== Deploy $APP ==="
 
@@ -70,8 +70,11 @@ fi
 
 umask 077
 
-: > "$ENV_FILE.new"
+# APP пишем всегда первым — для сверки при траблшутинге,
+# приложению он не нужен.
+printf 'APP=%s\n' "$APP" > "$ENV_FILE.new"
 for key in $ENV_KEYS; do
+  [ "$key" != APP ] || continue
   printf '%s=%s\n' "$key" "${!key}" >> "$ENV_FILE.new"
 done
 

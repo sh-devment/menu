@@ -24,8 +24,8 @@ jobs:
 
       - name: Deploy
         env:
-          # Имя приложения: repo-level variable, fallback — имя репозитория.
-          APP: ${{ vars.APP || github.event.repository.name }}
+          # Имя приложения: repo-level variable, задаётся вручную (обязательно).
+          APP: ${{ vars.APP }}
           # Какие переменные записать в $APP.env (всё ниже в этом блоке).
           ENV_KEYS: PORT AUTH_URL AUTH_INTERNAL APP_URL APP_TOKEN SECRET_KEY
 
