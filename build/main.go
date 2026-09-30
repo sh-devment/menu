@@ -47,50 +47,18 @@ type appDef struct {
 	Sub  string // subdomain; the URL is https://<Sub>.<region.Domain>
 	URL  string // filled at startup by initRegion (region.go) — don't set by hand
 	Icon string // icon filename under web/icons/ (e.g. "blur.svg"); empty → first-letter tile
-	Desc string // short description shown at the top of the info modal
 
-	// Features is an optional bullet list shown under Desc in the info modal.
-	// Add as many lines as you like; an empty slice hides the list.
+	// Info-modal content, filled at startup by initRegion from region.Apps
+	// (region.go) — don't set by hand.
+	Desc     string
 	Features []string
 }
 
 var apps = []appDef{
-	{
-		Slug: "nom-nom", Name: "nom-nom", Sub: "nom-nom", Icon: "nom-nom.svg",
-		Desc: "Это трекер для колорий и веса",
-		Features: []string{
-			"Ежедневная статистика прогресса",
-			"Учет и калорий по блюдам",
-			"AI анализ еды по фото",
-		},
-	},
-	{
-		Slug: "wgetbash", Name: "wget-bash", Sub: "wgetbash", Icon: "wget-bash.svg",
-		Desc: "Хранилище для bash скриптов",
-		Features: []string{
-			"Доставка до сервера в один клик",
-			"Группы и быстрый поиск по скриптам",
-			"Встроенный просмотр логов",
-		},
-	},
-	{
-		Slug: "blur", Name: "blur", Sub: "blur", Icon: "blur.svg",
-		Desc: "Плеер для длинных аудио — книг, подкастов и лекций",
-		Features: []string{
-			"Удобно выбирать время воспроизведения клавиатурой",
-			"Плеер запоминает где вы остановились, даже если приложение закрыто",
-			"Можно отключить автовоспроизведение, чтоб плеер сам остановился",
-		},
-	},
-	{
-		Slug: "qcode", Name: "qcode", Sub: "qcode", Icon: "qcode.svg",
-		Desc: "Редактор для создания красивых qr codes",
-		Features: []string{
-			"Есть интеграция с AI",
-			"Огромное разнообразие параметров, которые можно изменить",
-			"Это бесплатно!",
-		},
-	},
+	{Slug: "nom-nom", Name: "nom-nom", Sub: "nom-nom", Icon: "nom-nom.svg"},
+	{Slug: "wgetbash", Name: "wget-bash", Sub: "wgetbash", Icon: "wget-bash.svg"},
+	{Slug: "blur", Name: "blur", Sub: "blur", Icon: "blur.svg"},
+	{Slug: "qcode", Name: "qcode", Sub: "qcode", Icon: "qcode.svg"},
 }
 
 // assetVer is a short content hash of everything embedded under web/. The

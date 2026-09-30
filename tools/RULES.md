@@ -84,13 +84,15 @@ All apps live in one `apps []appDef` slice in `main.go`. The grid template, the
 
 ```go
 var apps = []appDef{
-    {Slug: "blur", Name: "blur", Sub: "blur", Icon: "blur.svg", Desc: "..."},
+    {Slug: "blur", Name: "blur", Sub: "blur", Icon: "blur.svg"},
     ...
 }
 ```
 
-`appDef{Slug, Name, Sub, URL, Icon, Desc, Features}`. `URL` is **not** set by hand —
-`initRegion()` (`region.go`) fills it as `https://<Sub>.<region.Domain>`. `appBySlug(slug)` looks one up.
+`appDef{Slug, Name, Sub, URL, Icon, Desc, Features}`. `URL`, `Desc`, `Features` are **not**
+set by hand. `initRegion()` (`region.go`) fills `URL` as `https://<Sub>.<region.Domain>` and takes
+`Desc`/`Features` from `region.Apps[slug]`. A new app needs an entry here **and** in `Apps` of
+every region. `appBySlug(slug)` looks one up.
 
 ## Regions
 
@@ -106,6 +108,22 @@ differ slightly between them. SSO works only within one zone. Both profiles are 
   with the owner before commit.
 - Infrastructure (auth URLs, tokens, port) → env.
 - Template gets the profile as `.Region` (e.g. `{{.Region.Domain}}`) — never hardcode the domain.
+
+### Language
+
+Language follows the region: `ru` is in Russian (a few English UI words like `apps`, `info`,
+`log out` stay as they are), `com` is strictly English. There is no browser-language detection.
+
+- Every user-facing string lives in `regionDef.Text` (`pageText`, named fields) and
+  `regionDef.Apps` (per-app `Desc`/`Features`). Templates use `{{.Region.Text.X}}`, and
+  `<html lang>` comes from `Region.Lang`.
+- JS strings live in `Text.JS` (`jsText`). They are rendered into `<script id="texts">` as JSON,
+  and `app.js` reads them into `TEXT`. No text literals in `app.js` or `index.html`.
+- **Completeness check at startup:** `initRegion()` checks **all** regions. Any empty string, or
+  an app missing from `Apps`, is fatal (health check fails → rollback). A text added in `ru` must
+  be added in `com` too.
+- Nobody checks for Cyrillic in `com`. That's up to the developer.
+- Technical text (logs, `http.Error` bodies) is English in both zones and doesn't go in `region.go`.
 
 ## Cross-app redirect (delegate flow)
 

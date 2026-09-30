@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="{{.Region.Lang}}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -23,7 +23,7 @@
     <button class="tab" data-tab="info">info</button>
   </div>
   <div class="profile-area">
-    <button class="profile-btn" id="profileBtn" aria-label="профиль"
+    <button class="profile-btn" id="profileBtn" aria-label="{{.Region.Text.Profile}}"
             data-name="{{if .User.Name}}{{.User.Name}}{{else}}{{.User.AuthID}}{{end}}">
       <span class="profile-initial">?</span>
     </button>
@@ -46,7 +46,7 @@
     <div class="apps-wrap">
       <header class="apps-head">
         <h1 class="apps-title">sh-development</h1>
-        <p class="apps-sub">приложения</p>
+        <p class="apps-sub">{{.Region.Text.AppsSub}}</p>
       </header>
       <div class="app-grid">
         {{range .Apps}}
@@ -54,12 +54,12 @@
           <div class="app-icon">{{if .Icon}}<img src="/icons/{{.Icon}}?v={{ver}}" alt="">{{else}}{{slice .Name 0 1}}{{end}}</div>
           <span class="app-name">{{.Name}}</span>
           <i class="dot" aria-hidden="true"></i>
-          <a class="app-open" href="/open/{{.Slug}}" aria-label="открыть {{.Name}}"></a>
-          <button class="app-info-btn" data-name="{{.Name}}" data-desc="{{.Desc}}" data-icon="{{if .Icon}}/icons/{{.Icon}}?v={{ver}}{{end}}" data-features="{{join .Features "|"}}" aria-label="подробнее о {{.Name}}">i</button>
+          <a class="app-open" href="/open/{{.Slug}}" aria-label="{{$.Region.Text.OpenApp}} {{.Name}}"></a>
+          <button class="app-info-btn" data-name="{{.Name}}" data-desc="{{.Desc}}" data-icon="{{if .Icon}}/icons/{{.Icon}}?v={{ver}}{{end}}" data-features="{{join .Features "|"}}" aria-label="{{$.Region.Text.AppInfo}} {{.Name}}">i</button>
         </div>
         {{end}}
       </div>
-      <button class="app-refresh" id="appRefresh" aria-label="обновить статусы приложений" title="обновить статусы">
+      <button class="app-refresh" id="appRefresh" aria-label="{{.Region.Text.Refresh}}" title="{{.Region.Text.Refresh}}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polyline points="23 4 23 10 17 10"/>
@@ -73,10 +73,10 @@
     <div class="info-card">
       <div class="card-head">
         <img class="card-head-mark" src="/favicon.svg?v={{ver}}" alt="">
-        <h2 class="info-title">о проекте</h2>
+        <h2 class="info-title">{{.Region.Text.InfoTitle}}</h2>
       </div>
-      <p>Привет! Меня зовут <strong>Сергей Шумилов</strong>, и это моё видение экосистемы веб-приложений.</p>
-      <p>Отдельного приложения для поддержки пока нет. Если хотите дать совет или сообщить об ошибке — напишите мне:</p>
+      <p>{{.Region.Text.InfoHello}}</p>
+      <p>{{.Region.Text.InfoContact}}</p>
       <div class="info-links">
         <button class="info-link" id="copyEmail" data-email="wumilovsergey@gmail.com">
           <span class="info-link-text">wumilovsergey@gmail.com</span>
@@ -94,7 +94,7 @@
           </svg>
         </a>
       </div>
-      <p class="info-foot">Больше обо мне — <a href="https://{{.Region.Domain}}" target="_blank" rel="noopener">{{.Region.Domain}}</a></p>
+      <p class="info-foot">{{.Region.Text.InfoMore}} <a href="https://{{.Region.Domain}}" target="_blank" rel="noopener">{{.Region.Domain}}</a></p>
     </div>
   </div>
 </main>
@@ -107,12 +107,12 @@
     <div class="login-card">
       <div class="login-logo">menu</div>
       <a class="login-domain" href="https://{{.Region.Domain}}" target="_blank" rel="noopener">{{.Region.Domain}}</a>
-      <a class="login-btn" href="/login">войти</a>
+      <a class="login-btn" href="/login">{{.Region.Text.Login}}</a>
     </div>
   </div>
 
   <div class="app-about">
-    <p>Центральное меню экосистемы sh-development. Единая авторизация — открывайте любое приложение без повторного входа.</p>
+    <p>{{.Region.Text.About}}</p>
   </div>
 
   <div class="login-divider">
@@ -125,7 +125,7 @@
 
 <div class="app-modal-backdrop" id="appModal">
   <div class="app-modal" role="dialog" aria-modal="true">
-    <button class="app-modal-x" id="appModalClose" aria-label="закрыть">
+    <button class="app-modal-x" id="appModalClose" aria-label="{{.Region.Text.Close}}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
            stroke-linecap="round" aria-hidden="true">
         <path d="M6 6 18 18M18 6 6 18"/>
@@ -146,12 +146,13 @@
       <div class="app-modal-name" id="statusModalTitle"></div>
     </div>
     <div class="app-modal-desc" id="statusModalText"></div>
-    <button class="app-modal-close" id="statusModalClose">понятно</button>
+    <button class="app-modal-close" id="statusModalClose">{{.Region.Text.GotIt}}</button>
   </div>
 </div>
 
 <div class="app-toast" id="toast"></div>
 
+<script type="application/json" id="texts">{{.Region.Text.JS}}</script>
 <script src="/shell.js?v={{ver}}"></script>
 <script src="/app.js?v={{ver}}"></script>
 </body>

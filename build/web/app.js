@@ -69,18 +69,25 @@ async function checkStatus() {
   if (refresh) refresh.classList.remove('spinning');
 }
 
+// ── Page texts ──────────────────────────────────────────────────────────────
+//
+// Every user-facing string comes from the active region (region.go), rendered
+// into <script id="texts"> as JSON — no literals here.
+
+const TEXT = JSON.parse(document.getElementById('texts').textContent);
+
 // ── Status popup (glassy) ────────────────────────────────────────────────────
 
 const STATUS_COPY = {
   partial: {
     kind: 'warn',
-    title: 'Соединение не проходит',
-    text: 'Сервис работает, но ваша сеть, похоже, блокирует доступ. Скорее всего, дело не в нас, а в провайдере.',
+    title: TEXT.partialTitle,
+    text: TEXT.partialText,
   },
   offline: {
     kind: 'bad',
-    title: 'Сервис недоступен',
-    text: 'Упс! Приложение сейчас не отвечает. Мы уже работаем над этим — загляните чуть позже.',
+    title: TEXT.offlineTitle,
+    text: TEXT.offlineText,
   },
 };
 
@@ -237,7 +244,7 @@ if (copyEmailBtn) {
   copyEmailBtn.addEventListener('click', async () => {
     const email = copyEmailBtn.dataset.email;
     const ok = await copyText(email);
-    showToast(ok ? 'Email скопирован в буфер обмена' : email);
+    showToast(ok ? TEXT.emailCopied : email);
   });
 }
 
