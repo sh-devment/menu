@@ -79,8 +79,8 @@ GET /       → handleCallback(code) → POST AUTH_INTERNAL/exchange → upsertU
 
 ## App definitions (single source of truth)
 
-All apps live in one `apps []appDef` slice in `main.go`. The grid template, the
-`/status` endpoint, and the open handler all derive from it — add an app in one place:
+All apps live in one `apps []appDef` slice in `main.go`. The grid template and the open
+handler both derive from it — add an app in one place:
 
 ```go
 var apps = []appDef{
@@ -135,7 +135,6 @@ func handleOpen(w http.ResponseWriter, r *http.Request) {
     if uid == 0 { http.Redirect(w, r, "/login", http.StatusFound); return }
     app := appBySlug(r.PathValue("slug"))
     if app == nil { http.NotFound(w, r); return }
-    if !reachable(app.URL) { /* 502 */ }          // server half of the green check
     code, err := delegateCode(uid)
     // ... → redirect app.URL + "/?code=" + code
 }
@@ -143,23 +142,19 @@ func handleOpen(w http.ResponseWriter, r *http.Request) {
 
 No per-app handlers — registering a new app needs only an `apps` entry.
 
-## Server status (`/status`)
+## Availability
 
-`GET /status` returns `{slug: bool}` — server-side reachability of every app, probed
-concurrently with a 4s-timeout `statusClient` (`reachable()` does HEAD, falls back to GET;
-any HTTP response = reachable). Auth-gated. The client merges this with its own per-app
-`no-cors` ping to drive the traffic-light dot (see `app.js`):
-
-- green `online`  — server OK **and** client OK → opening allowed
-- yellow `partial` — exactly one OK → likely network/provider block, opening blocked
-- red `offline`  — both bad, opening blocked
+No reachability probes — neither on page load nor on the server. A card is a plain link to
+`/open/{slug}`. On click `app.js` starts a 2s timer (`OPEN_TIMEOUT`); if the page is still
+there when it fires, the redirect didn't happen: it calls `window.stop()` and shows the
+"app temporarily unavailable" popup (`Text.JS.UnavailableTitle/Text`).
 
 ## App grid
 
 Current apps (subdomains, on the active region's domain): `nom-nom`, `wgetbash`, `blur`, `qcode`.
 
-Each card shows: temp icon tile, name, status dot, and an info button (`i`) that opens a
-modal with the app's `Desc`. A "refresh" button under the grid re-runs the status check.
+Each card shows: icon tile, name, and an info button (`i`) that opens a modal with the
+app's `Desc`/`Features`.
 
 ## Navigation (two tabs)
 

@@ -50,23 +50,14 @@
       </header>
       <div class="app-grid">
         {{range .Apps}}
-        <div class="app-card checking" data-slug="{{.Slug}}" data-url="{{.URL}}">
+        <div class="app-card">
           <div class="app-icon">{{if .Icon}}<img src="/icons/{{.Icon}}?v={{ver}}" alt="">{{else}}{{slice .Name 0 1}}{{end}}</div>
           <span class="app-name">{{.Name}}</span>
-          <i class="dot" aria-hidden="true"></i>
           <a class="app-open" href="/open/{{.Slug}}" aria-label="{{$.Region.Text.OpenApp}} {{.Name}}"></a>
           <button class="app-info-btn" data-name="{{.Name}}" data-desc="{{.Desc}}" data-icon="{{if .Icon}}/icons/{{.Icon}}?v={{ver}}{{end}}" data-features="{{join .Features "|"}}" aria-label="{{$.Region.Text.AppInfo}} {{.Name}}">i</button>
         </div>
         {{end}}
       </div>
-      <button class="app-refresh" id="appRefresh" aria-label="{{.Region.Text.Refresh}}" title="{{.Region.Text.Refresh}}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="23 4 23 10 17 10"/>
-          <polyline points="1 20 1 14 7 14"/>
-          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-        </svg>
-      </button>
     </div>
   </div>
   <div class="tab-panel" id="panel-info">
@@ -141,7 +132,7 @@
 </div>
 
 <div class="app-modal-backdrop" id="statusModal">
-  <div class="app-modal status-modal" role="dialog" aria-modal="true">
+  <div class="app-modal" role="dialog" aria-modal="true">
     <div class="card-head">
       <div class="app-modal-name" id="statusModalTitle"></div>
     </div>

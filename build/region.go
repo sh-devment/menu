@@ -42,7 +42,6 @@ type pageText struct {
 	AppsSub string // subtitle under "sh-development"
 	OpenApp string // aria-label prefix: "<OpenApp> <app name>"
 	AppInfo string // aria-label prefix of the (i) button: "<AppInfo> <app name>"
-	Refresh string // aria-label/title of the refresh button
 
 	// info tab
 	InfoTitle   string
@@ -60,11 +59,9 @@ type pageText struct {
 
 // jsText is rendered into the page as JSON and read by app.js.
 type jsText struct {
-	PartialTitle string `json:"partialTitle"`
-	PartialText  string `json:"partialText"`
-	OfflineTitle string `json:"offlineTitle"`
-	OfflineText  string `json:"offlineText"`
-	EmailCopied  string `json:"emailCopied"`
+	UnavailableTitle string `json:"unavailableTitle"` // popup when an app didn't open within 2s
+	UnavailableText  string `json:"unavailableText"`
+	EmailCopied      string `json:"emailCopied"`
 }
 
 var regions = map[string]regionDef{
@@ -78,7 +75,6 @@ var regions = map[string]regionDef{
 			AppsSub: "приложения",
 			OpenApp: "открыть",
 			AppInfo: "подробнее о",
-			Refresh: "обновить статусы приложений",
 
 			InfoTitle:   "о проекте",
 			InfoHello:   "Привет! Меня зовут <strong>Сергей Шумилов</strong>, и это моё видение экосистемы веб-приложений.",
@@ -90,11 +86,9 @@ var regions = map[string]regionDef{
 			GotIt:   "понятно",
 
 			JS: jsText{
-				PartialTitle: "Соединение не проходит",
-				PartialText:  "Сервис работает, но ваша сеть, похоже, блокирует доступ. Скорее всего, дело не в нас, а в провайдере.",
-				OfflineTitle: "Сервис недоступен",
-				OfflineText:  "Упс! Приложение сейчас не отвечает. Мы уже работаем над этим — загляните чуть позже.",
-				EmailCopied:  "Email скопирован в буфер обмена",
+				UnavailableTitle: "Приложение недоступно",
+				UnavailableText:  "Приложение временно недоступно, попробуйте позже.",
+				EmailCopied:      "Email скопирован в буфер обмена",
 			},
 		},
 		Apps: map[string]appText{
@@ -136,47 +130,60 @@ var regions = map[string]regionDef{
 		Domain: "sh-development.com",
 		Lang:   "en",
 		Text: pageText{
-			Login: "",
-			About: "",
+			Login: "log in",
+			About: "The central menu of the sh-development ecosystem. Single sign-on — open any app without logging in again.",
 
-			AppsSub: "",
-			OpenApp: "",
-			AppInfo: "",
-			Refresh: "",
+			AppsSub: "apps",
+			OpenApp: "open",
+			AppInfo: "more about",
 
-			InfoTitle:   "",
-			InfoHello:   "", // name: <strong>Shumilov Sergey</strong>
-			InfoContact: "",
-			InfoMore:    "",
+			InfoTitle:   "about",
+			InfoHello:   "Hi! I'm <strong>Shumilov Sergey</strong>, and this is my vision of a web app ecosystem.",
+			InfoContact: "There's no dedicated support app yet. If you have advice or found a bug — write to me:",
+			InfoMore:    "More about me —",
 
-			Profile: "",
-			Close:   "",
-			GotIt:   "",
+			Profile: "profile",
+			Close:   "close",
+			GotIt:   "got it",
 
 			JS: jsText{
-				PartialTitle: "",
-				PartialText:  "",
-				OfflineTitle: "",
-				OfflineText:  "",
-				EmailCopied:  "",
+				UnavailableTitle: "App unavailable",
+				UnavailableText:  "The app is temporarily unavailable, please try again later.",
+				EmailCopied:      "Email copied to clipboard",
 			},
 		},
 		Apps: map[string]appText{
 			"nom-nom": {
-				Desc:     "",
-				Features: []string{"", "", ""},
+				Desc: "A calorie and weight tracker",
+				Features: []string{
+					"Daily progress stats",
+					"Calorie tracking per dish",
+					"AI food analysis from a photo",
+				},
 			},
 			"wgetbash": {
-				Desc:     "",
-				Features: []string{"", "", ""},
+				Desc: "A store for bash scripts",
+				Features: []string{
+					"One-click delivery to a server",
+					"Groups and fast script search",
+					"Built-in log viewer",
+				},
 			},
 			"blur": {
-				Desc:     "",
-				Features: []string{"", "", ""},
+				Desc: "A player for long audio — books, podcasts and lectures",
+				Features: []string{
+					"Easy keyboard seeking",
+					"Remembers where you stopped, even after the app is closed",
+					"Autoplay can be turned off so the player stops on its own",
+				},
 			},
 			"qcode": {
-				Desc:     "",
-				Features: []string{"", "", ""},
+				Desc: "An editor for beautiful QR codes",
+				Features: []string{
+					"AI integration",
+					"A huge variety of adjustable parameters",
+					"It's free!",
+				},
 			},
 		},
 	},

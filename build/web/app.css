@@ -51,10 +51,7 @@
   --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
           'Helvetica Neue', 'Segoe UI', Inter, Roboto, Arial, sans-serif;
 
-  /* traffic-light palette — the dots are gone from the markup, but app.js
-     still classes cards and the status popup still uses these. */
-  --ok:   #4ade80;
-  --warn: #fbbf24;
+  /* destructive actions (log out) */
   --bad:  #f87171;
 }
 
@@ -247,21 +244,14 @@ body::before {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  transition: background .18s ease, border-color .18s ease, opacity .18s ease;
+  transition: background .18s ease, border-color .18s ease;
 }
 
-.app-card:not(.blocked):hover { background: var(--sunk); border-color: var(--border-active); }
+.app-card:hover { background: var(--sunk); border-color: var(--border-active); }
 
 /* the full-row overlay link */
 .app-open { position: absolute; inset: 0; z-index: 1; }
 .app-open:focus-visible { outline-offset: -4px; }
-
-/* a card app.js could not reach dims; clicking it raises the status popup */
-.app-card.blocked .app-icon,
-.app-card.blocked .app-name { opacity: .45; }
-/* re-enable together with PRE_REDIRECT_CHECK in app.js — while the gate is
-   off a blocked card still opens, so this cursor would be misleading:
-.app-card.blocked .app-open { cursor: not-allowed; } */
 
 /* ── icon tile ────────────────────────────────────────────────────────── */
 
@@ -299,35 +289,6 @@ body::before {
   object-fit: cover;
 }
 
-/* ── status dot ────────────────────────────────────────────────────────
-   Driven entirely by the classes app.js already puts on .app-card
-   (checking / online / partial / offline). It sits just left of the info
-   section, so the card reads: icon — name — state — info. */
-
-.app-card .dot {
-  flex: none;
-  width: .5rem;
-  height: .5rem;
-  margin-right: .95rem;
-  border-radius: 50%;
-  background: var(--text-dim);
-}
-
-.app-card.checking .dot { animation: dot-pulse 1.1s ease-in-out infinite; }
-.app-card.online   .dot { background: var(--ok);   box-shadow: 0 0 .5rem color-mix(in srgb, var(--ok)   65%, transparent); }
-.app-card.partial  .dot { background: var(--warn); box-shadow: 0 0 .5rem color-mix(in srgb, var(--warn) 65%, transparent); }
-.app-card.offline  .dot { background: var(--bad);  box-shadow: 0 0 .5rem color-mix(in srgb, var(--bad)  65%, transparent); }
-
-@keyframes dot-pulse {
-  0%, 100% { opacity: .3; }
-  50%      { opacity: 1; }
-}
-
-/* Hidden for now — delete this one rule to bring the indicators back. The
-   markup and every state class above stay put, and app.js keeps probing
-   /status on load. Card height is fixed, so nothing shifts vertically. */
-.app-card .dot { display: none; }
-
 /* ── info section ──────────────────────────────────────────────────────
    A full-height strip down the card's right edge, split off by one hairline
    (per card.png). Negative margins let it bleed through .app-card's padding
@@ -358,37 +319,6 @@ body::before {
   background: color-mix(in srgb, var(--border-active) 86%, var(--neon));
   color: var(--accent);
 }
-
-/* ── refresh ───────────────────────────────────────────────────────────
-   Circle with the two-arrow glyph, centred under the stack. app.js toggles
-   .spinning on it for the duration of a check. */
-
-.app-refresh {
-  margin: 1.4rem auto 0;
-  width: 2.75rem;
-  height: 2.75rem;
-  display: grid;
-  place-items: center;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  color: var(--text);
-  transition: background .18s ease, border-color .18s ease, color .18s ease;
-}
-
-.app-refresh:hover { background: var(--sunk); border-color: var(--border-active); color: var(--accent); }
-
-.app-refresh svg { width: 1.15rem; height: 1.15rem; }
-
-.app-refresh.spinning { color: var(--text-dim); pointer-events: none; }
-.app-refresh.spinning svg { animation: spin .8s linear infinite; }
-
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* Hidden for now — delete this one rule to bring the button back. The markup,
-   the app.js listener and the .spinning styles above all stay put; statuses
-   still refresh on page load via checkStatus(). */
-.app-refresh { display: none; }
 
 /* ── name ─────────────────────────────────────────────────────────────── */
 
@@ -566,8 +496,8 @@ body::before {
 .login-divider-dot { border-color: var(--border-active); }
 
 /* ── MODALS ───────────────────────────────────────────────────────────────
-   The info button is gone from the markup, but #appModal and #statusModal
-   stay wired in app.js — the status popup still fires on a blocked card. */
+   #appModal — the (i) info popup; #statusModal — "app unavailable", raised by
+   app.js when a click hasn't navigated away within OPEN_TIMEOUT. */
 
 .app-modal-backdrop {
   position: fixed;
@@ -666,11 +596,6 @@ body::before {
 }
 
 .app-modal-close:hover { background: var(--accent-bg); border-color: var(--border-active); color: var(--accent); }
-
-.status-modal.warn { border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
-.status-modal.bad  { border-color: color-mix(in srgb, var(--bad)  50%, transparent); }
-.status-modal.warn .app-modal-name { color: var(--warn); }
-.status-modal.bad  .app-modal-name { color: var(--bad); }
 
 /* ── TOAST ────────────────────────────────────────────────────────────── */
 

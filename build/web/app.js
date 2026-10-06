@@ -10,65 +10,6 @@ document.querySelectorAll('.tab[data-tab]').forEach(tab => {
   });
 });
 
-// ── App status checks ───────────────────────────────────────────────────────
-//
-// Each card carries one of four states from two independent reachability probes:
-//   online  = server OK && client OK   → opening allowed
-//   partial = exactly one OK           → likely a network/provider block
-//   offline = both bad
-// Only `online` cards may open. The colour dot is the only indicator (no text).
-
-const STATES = ['checking', 'online', 'partial', 'offline'];
-
-function setState(card, state) {
-  card.classList.remove(...STATES);
-  card.classList.add(state);
-  card.classList.toggle('blocked', state !== 'online');
-}
-
-function currentState(card) {
-  return STATES.find(s => card.classList.contains(s));
-}
-
-function computeState(srvOk, clientOk) {
-  return srvOk && clientOk ? 'online'
-       : !srvOk && !clientOk ? 'offline'
-       : 'partial';
-}
-
-// Client-side ping: no-cors fetch resolves (opaque) when reachable from the
-// user's network, rejects on DNS/connection/provider-block failures.
-async function pingClient(url) {
-  try {
-    await fetch(url, { mode: 'no-cors', signal: AbortSignal.timeout(4000) });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// server-side reachability of every app at once
-function fetchServer() {
-  return fetch('/status').then(r => r.json()).catch(() => ({}));
-}
-
-async function checkStatus() {
-  const cards = [...document.querySelectorAll('.app-card')];
-  if (!cards.length) return;
-
-  const refresh = document.getElementById('appRefresh');
-  if (refresh) refresh.classList.add('spinning');
-  cards.forEach(c => setState(c, 'checking'));
-
-  const server = await fetchServer();
-  await Promise.all(cards.map(async card => {
-    const clientOk = await pingClient(card.dataset.url);
-    setState(card, computeState(!!server[card.dataset.slug], clientOk));
-  }));
-
-  if (refresh) refresh.classList.remove('spinning');
-}
-
 // ── Page texts ──────────────────────────────────────────────────────────────
 //
 // Every user-facing string comes from the active region (region.go), rendered
@@ -76,31 +17,20 @@ async function checkStatus() {
 
 const TEXT = JSON.parse(document.getElementById('texts').textContent);
 
-// ── Status popup (glassy) ────────────────────────────────────────────────────
+// ── Open flow ───────────────────────────────────────────────────────────────
+//
+// No reachability probes: a card is a plain link to /open/{slug}, which
+// redirects to the app. If we are still on this page OPEN_TIMEOUT after the
+// click, the app did not answer — stop the navigation and show the popup.
 
-const STATUS_COPY = {
-  partial: {
-    kind: 'warn',
-    title: TEXT.partialTitle,
-    text: TEXT.partialText,
-  },
-  offline: {
-    kind: 'bad',
-    title: TEXT.offlineTitle,
-    text: TEXT.offlineText,
-  },
-};
-
+const OPEN_TIMEOUT = 2000;
 const statusModal = document.getElementById('statusModal');
+let openTimer;
 
-function showStatusPopup(state) {
-  const c = STATUS_COPY[state];
-  if (!c || !statusModal) return;
-  document.getElementById('statusModalTitle').textContent = c.title;
-  document.getElementById('statusModalText').textContent = c.text;
-  const box = statusModal.querySelector('.status-modal');
-  box.classList.remove('warn', 'bad');
-  box.classList.add(c.kind);
+function showUnavailable() {
+  if (!statusModal) return;
+  document.getElementById('statusModalTitle').textContent = TEXT.unavailableTitle;
+  document.getElementById('statusModalText').textContent = TEXT.unavailableText;
   statusModal.classList.add('open');
 }
 
@@ -114,52 +44,22 @@ if (statusModal) {
   if (closeBtn) closeBtn.addEventListener('click', closeStatusModal);
 }
 
-// ── Open flow with pre-redirect re-check ─────────────────────────────────────
-//
-// The page status may be stale (e.g. user idle 5 min on a green card). So on a
-// click we re-verify reachability at that exact moment; only a fresh `online`
-// result navigates, otherwise we surface the matching popup.
-//
-// TEMPORARILY OFF. Flip PRE_REDIRECT_CHECK back to true to restore every bit of
-// the gating below — nothing else was removed. While it is false the click
-// handler bails out before preventDefault(), so the browser just follows the
-// card's href whatever the dot says. The server half of the same check is
-// likewise commented out in handleOpen (main.go), and the "not-allowed" cursor
-// for blocked cards is commented out in app.css — re-enable all three together.
-const PRE_REDIRECT_CHECK = false;
-
-let opening = false;
-
 document.querySelectorAll('.app-open').forEach(link => {
-  link.addEventListener('click', async e => {
-    if (!PRE_REDIRECT_CHECK) return;   // let the browser follow the link
-    e.preventDefault();
-    if (opening) return;
-
-    const card = link.closest('.app-card');
-    const state = currentState(card);
-
-    if (state === 'checking') return;                 // still resolving — ignore
-    if (state === 'partial' || state === 'offline') { // already known bad
-      showStatusPopup(state);
-      return;
-    }
-
-    // online → re-verify right now before letting the user through
-    opening = true;
-    setState(card, 'checking');
-    const [server, clientOk] = await Promise.all([fetchServer(), pingClient(card.dataset.url)]);
-    const fresh = computeState(!!server[card.dataset.slug], clientOk);
-    setState(card, fresh);
-    opening = false;
-
-    if (fresh === 'online') {
-      window.location.href = link.getAttribute('href');
-    } else {
-      showStatusPopup(fresh);
-    }
+  link.addEventListener('click', e => {
+    // ctrl/cmd/shift-click opens elsewhere — this page legitimately stays
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    clearTimeout(openTimer);
+    openTimer = setTimeout(() => {
+      window.stop();
+      showUnavailable();
+    }, OPEN_TIMEOUT);
   });
 });
+
+// leaving the page, or coming back to it from the bfcache, must not fire a
+// stale timer
+window.addEventListener('pagehide', () => clearTimeout(openTimer));
+window.addEventListener('pageshow', () => { clearTimeout(openTimer); closeStatusModal(); });
 
 // ── Info modal ──────────────────────────────────────────────────────────────
 
@@ -247,8 +147,3 @@ if (copyEmailBtn) {
     showToast(ok ? TEXT.emailCopied : email);
   });
 }
-
-// kick off the first check
-checkStatus();
-const refreshBtn = document.getElementById('appRefresh');
-if (refreshBtn) refreshBtn.addEventListener('click', checkStatus);

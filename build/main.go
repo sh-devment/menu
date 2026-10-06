@@ -2,7 +2,6 @@ package main
 
 import (
 	"embed"
-	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"html/template"
@@ -12,7 +11,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -40,9 +38,9 @@ type pageData struct {
 }
 
 // appDef is the single source of truth for an app in the grid.
-// The grid (template), the status endpoint, and the open handler all derive from it.
+// The grid (template) and the open handler both derive from it.
 type appDef struct {
-	Slug string // url segment + status key, e.g. "blur"
+	Slug string // url segment, e.g. "blur"
 	Name string // display name shown on the card
 	Sub  string // subdomain; the URL is https://<Sub>.<region.Domain>
 	URL  string // filled at startup by initRegion (region.go) — don't set by hand
@@ -109,22 +107,6 @@ func appBySlug(slug string) *appDef {
 	return nil
 }
 
-// statusClient is used for short-timeout server-side reachability probes.
-var statusClient = &http.Client{Timeout: 4 * time.Second}
-
-// reachable reports whether the server can reach url (any HTTP response counts).
-func reachable(url string) bool {
-	resp, err := statusClient.Head(url)
-	if err != nil {
-		resp, err = statusClient.Get(url)
-		if err != nil {
-			return false
-		}
-	}
-	resp.Body.Close()
-	return true
-}
-
 func initTemplate() {
 	src, err := webFiles.ReadFile("web/index.html")
 	if err != nil {
@@ -176,8 +158,6 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleOpen issues a cross-app delegate redirect for /open/{slug}.
-// The server re-checks reachability first, so a green status on the client is
-// backed by the server half of the check at redirect time too.
 func handleOpen(w http.ResponseWriter, r *http.Request) {
 	uid := sessionUserID(r)
 	if uid == 0 {
@@ -189,13 +169,6 @@ func handleOpen(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// Pre-redirect reachability check disabled for now — just redirect on click.
-	// Re-enable to block opening apps that are down.
-	// if !reachable(app.URL) {
-	// 	log.Printf("open-%s uid=%d unreachable", app.Slug, uid)
-	// 	http.Error(w, "app unreachable", http.StatusBadGateway)
-	// 	return
-	// }
 	code, err := delegateCode(uid)
 	if err != nil {
 		log.Printf("open-%s uid=%d error=%v", app.Slug, uid, err)
@@ -204,32 +177,6 @@ func handleOpen(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("open-%s uid=%d", app.Slug, uid)
 	http.Redirect(w, r, app.URL+"/?code="+code, http.StatusFound)
-}
-
-// handleStatus returns server-side reachability of every app as {slug: bool}.
-func handleStatus(w http.ResponseWriter, r *http.Request) {
-	uid := sessionUserID(r)
-	if uid == 0 {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	result := make(map[string]bool, len(apps))
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	for i := range apps {
-		wg.Add(1)
-		go func(a appDef) {
-			defer wg.Done()
-			ok := reachable(a.URL)
-			mu.Lock()
-			result[a.Slug] = ok
-			mu.Unlock()
-		}(apps[i])
-	}
-	wg.Wait()
-	log.Printf("status uid=%d result=%v", uid, result)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result) //nolint:errcheck
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────
@@ -267,7 +214,6 @@ func main() {
 	mux.HandleFunc("GET /login", handleLogin)
 	mux.HandleFunc("GET /logout", handleLogout)
 	mux.HandleFunc("GET /open/{slug}", handleOpen)
-	mux.HandleFunc("GET /status", handleStatus)
 	mux.Handle("GET /favicon.svg", cacheStatic(fileServer))
 	mux.Handle("GET /background.webp", cacheStatic(fileServer))
 	mux.Handle("GET /icons/{file}", cacheStatic(fileServer))
