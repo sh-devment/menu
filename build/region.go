@@ -1,10 +1,12 @@
 package main
 
-// region.go — the ONLY place where the ru / com zones differ.
+// region.go — the type and the loader of the ru / com zone profiles; the
+// profiles themselves live in region-ru.go and region-com.go. These three files
+// are the ONLY place where the zones differ.
 //
 // Both profiles are compiled into the binary; REGION (passed by the deploy
 // matrix) picks one at startup. Anything zone-specific — domain, links, texts,
-// per-app content — belongs here and nowhere else, so this file can be
+// per-app content — belongs here and nowhere else, so the three files can be
 // reviewed as a whole. Infrastructure (auth URLs, tokens, port) stays in env.
 // Technical text (logs, http.Error bodies) is English in both zones and does
 // not live here.
@@ -38,6 +40,12 @@ type pageText struct {
 	Login string // login button
 	About string // text under the login card
 
+	// header (ru keeps these English on purpose)
+	TabApps string
+	TabInfo string
+	Readme  string
+	Logout  string
+
 	// apps tab
 	AppsSub string // subtitle under "sh-development"
 	OpenApp string // aria-label prefix: "<OpenApp> <app name>"
@@ -52,141 +60,18 @@ type pageText struct {
 	// chrome
 	Profile string // aria-label of the profile button
 	Close   string // aria-label of the modal close button
-	GotIt   string // status modal button
 
 	JS jsText // strings used by app.js
 }
 
 // jsText is rendered into the page as JSON and read by app.js.
 type jsText struct {
-	UnavailableTitle string `json:"unavailableTitle"` // popup when an app didn't open within 2s
-	UnavailableText  string `json:"unavailableText"`
-	EmailCopied      string `json:"emailCopied"`
+	EmailCopied string `json:"emailCopied"`
 }
 
 var regions = map[string]regionDef{
-	"ru": {
-		Domain: "sh-development.ru",
-		Lang:   "ru",
-		Text: pageText{
-			Login: "войти",
-			About: "Центральное меню экосистемы sh-development. Единая авторизация — открывайте любое приложение без повторного входа.",
-
-			AppsSub: "приложения",
-			OpenApp: "открыть",
-			AppInfo: "подробнее о",
-
-			InfoTitle:   "о проекте",
-			InfoHello:   "Привет! Меня зовут <strong>Сергей Шумилов</strong>, и это моё видение экосистемы веб-приложений.",
-			InfoContact: "Отдельного приложения для поддержки пока нет. Если хотите дать совет или сообщить об ошибке — напишите мне:",
-			InfoMore:    "Больше обо мне —",
-
-			Profile: "профиль",
-			Close:   "закрыть",
-			GotIt:   "понятно",
-
-			JS: jsText{
-				UnavailableTitle: "Приложение недоступно",
-				UnavailableText:  "Приложение временно недоступно, попробуйте позже.",
-				EmailCopied:      "Email скопирован в буфер обмена",
-			},
-		},
-		Apps: map[string]appText{
-			"nom-nom": {
-				Desc: "Это трекер для колорий и веса",
-				Features: []string{
-					"Ежедневная статистика прогресса",
-					"Учет и калорий по блюдам",
-					"AI анализ еды по фото",
-				},
-			},
-			"wgetbash": {
-				Desc: "Хранилище для bash скриптов",
-				Features: []string{
-					"Доставка до сервера в один клик",
-					"Группы и быстрый поиск по скриптам",
-					"Встроенный просмотр логов",
-				},
-			},
-			"blur": {
-				Desc: "Плеер для длинных аудио — книг, подкастов и лекций",
-				Features: []string{
-					"Удобно выбирать время воспроизведения клавиатурой",
-					"Плеер запоминает где вы остановились, даже если приложение закрыто",
-					"Можно отключить автовоспроизведение, чтоб плеер сам остановился",
-				},
-			},
-			"qcode": {
-				Desc: "Редактор для создания красивых qr codes",
-				Features: []string{
-					"Есть интеграция с AI",
-					"Огромное разнообразие параметров, которые можно изменить",
-					"Это бесплатно!",
-				},
-			},
-		},
-	},
-	"com": {
-		Domain: "sh-development.com",
-		Lang:   "en",
-		Text: pageText{
-			Login: "log in",
-			About: "The central menu of the sh-development ecosystem. Single sign-on — open any app without logging in again.",
-
-			AppsSub: "apps",
-			OpenApp: "open",
-			AppInfo: "more about",
-
-			InfoTitle:   "about",
-			InfoHello:   "Hi! I'm <strong>Shumilov Sergey</strong>, and this is my vision of a web app ecosystem.",
-			InfoContact: "There's no dedicated support app yet. If you have advice or found a bug — write to me:",
-			InfoMore:    "More about me —",
-
-			Profile: "profile",
-			Close:   "close",
-			GotIt:   "got it",
-
-			JS: jsText{
-				UnavailableTitle: "App unavailable",
-				UnavailableText:  "The app is temporarily unavailable, please try again later.",
-				EmailCopied:      "Email copied to clipboard",
-			},
-		},
-		Apps: map[string]appText{
-			"nom-nom": {
-				Desc: "A calorie and weight tracker",
-				Features: []string{
-					"Daily progress stats",
-					"Calorie tracking per dish",
-					"AI food analysis from a photo",
-				},
-			},
-			"wgetbash": {
-				Desc: "A store for bash scripts",
-				Features: []string{
-					"One-click delivery to a server",
-					"Groups and fast script search",
-					"Built-in log viewer",
-				},
-			},
-			"blur": {
-				Desc: "A player for long audio — books, podcasts and lectures",
-				Features: []string{
-					"Easy keyboard seeking",
-					"Remembers where you stopped, even after the app is closed",
-					"Autoplay can be turned off so the player stops on its own",
-				},
-			},
-			"qcode": {
-				Desc: "An editor for beautiful QR codes",
-				Features: []string{
-					"AI integration",
-					"A huge variety of adjustable parameters",
-					"It's free!",
-				},
-			},
-		},
-	},
+	"ru":  regionRU,
+	"com": regionCOM,
 }
 
 // Active profile, selected from REGION by initRegion.

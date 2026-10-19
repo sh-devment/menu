@@ -19,47 +19,8 @@ const TEXT = JSON.parse(document.getElementById('texts').textContent);
 
 // ── Open flow ───────────────────────────────────────────────────────────────
 //
-// No reachability probes: a card is a plain link to /open/{slug}, which
-// redirects to the app. If we are still on this page OPEN_TIMEOUT after the
-// click, the app did not answer — stop the navigation and show the popup.
-
-const OPEN_TIMEOUT = 2000;
-const statusModal = document.getElementById('statusModal');
-let openTimer;
-
-function showUnavailable() {
-  if (!statusModal) return;
-  document.getElementById('statusModalTitle').textContent = TEXT.unavailableTitle;
-  document.getElementById('statusModalText').textContent = TEXT.unavailableText;
-  statusModal.classList.add('open');
-}
-
-function closeStatusModal() {
-  if (statusModal) statusModal.classList.remove('open');
-}
-
-if (statusModal) {
-  statusModal.addEventListener('click', e => { if (e.target === statusModal) closeStatusModal(); });
-  const closeBtn = document.getElementById('statusModalClose');
-  if (closeBtn) closeBtn.addEventListener('click', closeStatusModal);
-}
-
-document.querySelectorAll('.app-open').forEach(link => {
-  link.addEventListener('click', e => {
-    // ctrl/cmd/shift-click opens elsewhere — this page legitimately stays
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    clearTimeout(openTimer);
-    openTimer = setTimeout(() => {
-      window.stop();
-      showUnavailable();
-    }, OPEN_TIMEOUT);
-  });
-});
-
-// leaving the page, or coming back to it from the bfcache, must not fire a
-// stale timer
-window.addEventListener('pagehide', () => clearTimeout(openTimer));
-window.addEventListener('pageshow', () => { clearTimeout(openTimer); closeStatusModal(); });
+// Nothing to wire: a card is a plain link to /open/{slug}, which redirects to
+// the app. No probes, no timers, no fallback popup.
 
 // ── Info modal ──────────────────────────────────────────────────────────────
 
@@ -103,9 +64,9 @@ if (modal) {
   if (closeBtn) closeBtn.addEventListener('click', closeModal);
 }
 
-// Esc closes whichever popup is open
+// Esc closes the info popup
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); closeStatusModal(); }
+  if (e.key === 'Escape') closeModal();
 });
 
 // ── Copy email to clipboard (info tab) ───────────────────────────────────────

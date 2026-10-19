@@ -19,8 +19,8 @@
 
 <nav class="navbar">
   <div class="nav-tabs">
-    <button class="tab active" data-tab="apps">apps</button>
-    <button class="tab" data-tab="info">info</button>
+    <button class="tab active" data-tab="apps">{{.Region.Text.TabApps}}</button>
+    <button class="tab" data-tab="info">{{.Region.Text.TabInfo}}</button>
   </div>
   <div class="profile-area">
     <button class="profile-btn" id="profileBtn" aria-label="{{.Region.Text.Profile}}"
@@ -34,8 +34,8 @@
         {{if .User.Name}}<span class="pi-sub">{{.User.AuthID}}</span>{{end}}
       </div>
       <div class="pi-list">
-        <a class="pi-action pi-readme" href="https://github.com/shumilovsergey/menu" target="_blank" rel="noopener">readme</a>
-        <a class="pi-action pi-logout" href="/logout">log out</a>
+        <a class="pi-action pi-readme" href="https://github.com/shumilovsergey/menu" target="_blank" rel="noopener">{{.Region.Text.Readme}}</a>
+        <a class="pi-action pi-logout" href="/logout">{{.Region.Text.Logout}}</a>
       </div>
     </div>
   </div>
@@ -128,16 +128,6 @@
     </div>
     <div class="app-modal-desc" id="appModalDesc"></div>
     <ul class="app-modal-features" id="appModalFeatures"></ul>
-  </div>
-</div>
-
-<div class="app-modal-backdrop" id="statusModal">
-  <div class="app-modal" role="dialog" aria-modal="true">
-    <div class="card-head">
-      <div class="app-modal-name" id="statusModalTitle"></div>
-    </div>
-    <div class="app-modal-desc" id="statusModalText"></div>
-    <button class="app-modal-close" id="statusModalClose">{{.Region.Text.GotIt}}</button>
   </div>
 </div>
 

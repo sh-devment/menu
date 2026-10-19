@@ -495,9 +495,8 @@ body::before {
 .login-divider::after { background: var(--border); }
 .login-divider-dot { border-color: var(--border-active); }
 
-/* ── MODALS ───────────────────────────────────────────────────────────────
-   #appModal — the (i) info popup; #statusModal — "app unavailable", raised by
-   app.js when a click hasn't navigated away within OPEN_TIMEOUT. */
+/* ── MODAL ────────────────────────────────────────────────────────────────
+   #appModal — the (i) info popup. */
 
 .app-modal-backdrop {
   position: fixed;
@@ -583,19 +582,6 @@ body::before {
 }
 
 .app-modal-x:hover { background: var(--accent-bg); border-color: var(--border-active); color: var(--accent); }
-
-.app-modal-close {
-  align-self: flex-end;
-  padding: .55rem 1.1rem;
-  background: var(--sunk);
-  border: 1px solid var(--border);
-  border-radius: .65rem;
-  color: var(--text);
-  font-size: .85rem;
-  transition: background .18s ease, border-color .18s ease, color .18s ease;
-}
-
-.app-modal-close:hover { background: var(--accent-bg); border-color: var(--border-active); color: var(--accent); }
 
 /* ── TOAST ────────────────────────────────────────────────────────────── */
 
